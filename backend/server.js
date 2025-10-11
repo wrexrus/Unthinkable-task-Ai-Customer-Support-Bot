@@ -5,8 +5,9 @@ const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 const db = require('./db');
 const { searchFaqs } = require('./faq_retriever');
-const { generateResponse } = require('./llm_service');
-const LRU = require('lru-cache');
+const generateResponse = require('./llm_service');
+const { LRUCache } = require('lru-cache');
+
 
 const app = express();
 app.use(cors());
@@ -14,10 +15,10 @@ app.use(bodyParser.json());
 
 const PORT = process.env.PORT || 4000;
 
-const contextCache = new LRU({ max: 10000, ttl: 1000 * 60 * 60 }); 
+const contextCache = new LRUCache({ max: 10000, ttl: 1000 * 60 * 60 });
 
 function saveSession(sessionId, userId = null) {
-  const stmt = db.prepare('INSERT OR IGNORE INTO sessions (id, user_id, last_active) VALUES (?, ?, datetime("now"))');
+  const stmt = db.prepare("INSERT OR IGNORE INTO sessions (id, user_id, last_active) VALUES (?, ?, datetime('now'))");
   stmt.run(sessionId, userId);
 }
 
@@ -27,11 +28,10 @@ function saveMessage(id, sessionId, role, content) {
 }
 
 function updateLastActive(sessionId) {
-  const stmt = db.prepare('UPDATE sessions SET last_active = datetime("now") WHERE id = ?');
+  const stmt = db.prepare("UPDATE sessions SET last_active = datetime('now') WHERE id = ?");
   stmt.run(sessionId);
 }
 
-// Endpoint: create session
 app.post('/api/session', (req, res) => {
   const sessionId = uuidv4();
   const userId = req.body.user_id || null;
@@ -58,8 +58,13 @@ app.post('/api/session/:sessionId/message', async (req, res) => {
   }
 
   const faqHits = searchFaqs(text, 3);
+  console.log('DEBUG: userText=', text);
+  console.log('DEBUG: faqHits=', JSON.stringify(faqHits, null, 2));
 
   const { text: assistantText, shouldEscalate } = await generateResponse({ faqHits, contextMessages: context, userMessage: text });
+
+  console.log('DEBUG: assistantText=', assistantText);
+  console.log('DEBUG: shouldEscalate=', shouldEscalate);
 
   if (shouldEscalate) {
     const escId = uuidv4();

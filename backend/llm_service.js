@@ -1,54 +1,89 @@
-const { Configuration, OpenAIApi } = require('openai');
-const systemPrompt = `You are Unthinkable Assistant, a concise and accurate customer support agent. 
-- Use retrieved FAQ answers if they match.
-- Keep replies short (<= 120 words) unless the user asks for details.
-- If you cannot answer confidently, reply "I don't know — escalating" and let the system escalate.`;
+// backend/llm_service.js  (replace/patch)
+const axios = require('axios');
 
-const OPENAI_KEY = process.env.OPENAI_API_KEY;
-if (!OPENAI_KEY) {
-  console.warn('Warning: OPENAI_API_KEY is not set. LLM calls will fail.');
+function buildPrompt(faqHits = [], contextMessages = [], userMessage = '') {
+  let prompt = 'You are a helpful customer-support assistant.\n\n';
+  if (faqHits && faqHits.length > 0) {
+    prompt += 'Retrieved FAQs (use these if relevant):\n';
+    faqHits.forEach((hit, idx) => {
+      prompt += `${idx + 1}) [${hit.id}] Q: ${hit.question}\nA: ${hit.answer}\n\n`;
+    });
+  }
+  if (contextMessages && contextMessages.length > 0) {
+    prompt += 'Context (recent messages):\n';
+    contextMessages.forEach(m => {
+      prompt += `[${m.role}] ${m.content}\n`;
+    });
+    prompt += '\n';
+  }
+  prompt += `User: ${userMessage}\nAssistant:`;
+  return prompt;
 }
-const config = new Configuration({ apiKey: OPENAI_KEY });
-const client = new OpenAIApi(config);
 
-function buildPrompt(faqHits, contextMessages, userMessage) {
-  let p = `${systemPrompt}\n\nRETRIEVED_FAQS:\n`;
-  faqHits.forEach((f, i) => {
-    p += `${i+1}) [FAQ:${f.id},score:${f.score.toFixed(3)}] Q: ${f.question}\nA: ${f.answer}\n\n`;
-  });
-  p += `CONTEXT (recent):\n`;
-  contextMessages.forEach(m => {
-    p += `[${m.role}] ${m.content}\n`;
-  });
-  p += `\nUSER: ${userMessage}\n\nINSTRUCTIONS: Answer concisely. If the FAQ above directly answers, use it and reference FAQ id. If uncertain, say "I don't know — escalating".`;
-  return p;
+/* keep generateResponseGemini(...) from your current file if you want */
+async function generateResponseGemini({ faqHits = [], contextMessages = [], userMessage = '' }) {
+  const prompt = buildPrompt(faqHits, contextMessages, userMessage);
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+  const resp = await axios.post(
+    url,
+    { instances: [{ content: prompt }], parameters: { temperature: 0.0, maxOutputTokens: 300 } },
+    { headers: { Authorization: `Bearer ${process.env.GEMINI_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 20000 }
+  );
+  let assistantText = '';
+  if (resp?.data?.predictions && resp.data.predictions[0]) {
+    const p = resp.data.predictions[0];
+    assistantText = p.content || p.text || (p.candidates && p.candidates[0] && p.candidates[0].content) || JSON.stringify(p);
+  } else {
+    assistantText = JSON.stringify(resp.data).slice(0, 1000);
+  }
+  const shouldEscalate = /i don't know|dont know|not sure|cannot answer|unable to answer/i.test(assistantText || '');
+  return { text: assistantText.toString().trim(), shouldEscalate };
+}
+
+/* NEW: safer escalation detector */
+function detectEscalation(userMessage = '', assistantText = '') {
+  // Escalate only if:
+  //  - user explicitly used escalation keywords OR
+  //  - assistant explicitly admitted inability ("I don't know", "cannot answer")
+  const escalationKeywords = ['refund', 'chargeback', 'sue', 'legal', 'human', 'complain', 'escalate', 'delete account'];
+  const user = (userMessage || '').toLowerCase();
+  const hasUserEscalationKW = escalationKeywords.some(k => user.includes(k));
+
+  const assistant = (assistantText || '').toLowerCase();
+  const assistantAdmitsFailure = /i don't know|dont know|not sure|cannot answer|unable to answer|i cannot help/i.test(assistant);
+
+  return hasUserEscalationKW || assistantAdmitsFailure;
+}
+
+/* MOCK fallback functions unchanged (but use updated detectEscalation) */
+function buildAssistantTextFromFaq(faqHits = []) {
+  if (!faqHits || faqHits.length === 0) return null;
+  const top = faqHits[0];
+  // lower threshold to 0.35 to be more permissive
+  if (typeof top.score === 'number' && top.score >= 0.35) {
+    return `FAQ:${top.id} ${top.answer}`;
+  }
+  return `I found something related (${top.id}): ${top.answer} If that doesn't help, please provide more details or ask for human support.`;
 }
 
 async function generateResponse({ faqHits = [], contextMessages = [], userMessage = '' }) {
-  const prompt = buildPrompt(faqHits, contextMessages, userMessage);
-
-  try {
-    const resp = await client.createChatCompletion({
-      model: 'gpt-4o-mini', // change to available model in your account; fallback to 'gpt-4o-mini' or 'gpt-4o' per access
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'system', content: faqHits.map(f => `[FAQ:${f.id}] Q:${f.question} A:${f.answer}`).join('\n') },
-        ...contextMessages.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
-        { role: 'user', content: userMessage }
-      ],
-      temperature: 0.0,
-      max_tokens: 300
-    });
-
-    const assistantText = resp.data.choices[0].message.content.trim();
-
-    const shouldEscalate = /i don't know|dont know|not sure|escalat/i.test(assistantText);
-
-    return { text: assistantText, shouldEscalate };
-  } catch (err) {
-    console.error('LLM error', err?.response?.data || err.message || err);
-    return { text: "I'm having trouble accessing the LLM right now.", shouldEscalate: true };
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      return await generateResponseGemini({ faqHits, contextMessages, userMessage });
+    } catch (err) {
+      console.warn('Gemini failed — falling back to local mock. Error:', err?.message || err);
+    }
   }
+
+  const fromFaq = buildAssistantTextFromFaq(faqHits);
+  if (fromFaq) {
+    const shouldEsc = detectEscalation(userMessage, fromFaq);
+    return { text: fromFaq, shouldEscalate: shouldEsc };
+  }
+
+  const clarifying = 'Can you please provide more details about the issue (account type, product, or exact error)?';
+  const shouldEsc = detectEscalation(userMessage, clarifying);
+  return { text: clarifying, shouldEscalate: shouldEsc };
 }
 
-module.exports = { generateResponse };
+module.exports = generateResponse;
