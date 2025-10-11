@@ -1,0 +1,10 @@
+faq_001,How do I reset my password?,To reset your password go to Settings -> Reset Password and follow the instructions. If you don't receive an email, check spam.
+faq_002,What is your refund policy?,We provide refunds within 30 days of purchase if the product is unused. Contact support@unthinkable.example for manual review.
+faq_003,How can I contact human support?,You can request a human by typing "human" or "support" or opening a ticket at support@unthinkable.example.
+faq_004,Where can I find invoices?,Invoices are available in your account under Billing -> Invoices. You can download PDFs there.
+faq_005,Do you offer trial periods?,Yes — we offer a 14-day free trial for new users. Upgrade in Billing to keep unlimited access.
+faq_006,How do I change my billing method?,Go to Billing -> Payment Methods and add or remove cards. Contact billing@unthinkable.example for assistance.
+faq_007,Why was my card declined?,Card declines can be due to insufficient funds or bank restrictions. Retry with another card or contact your bank.
+faq_008,Can I cancel my account?,Yes — go to Settings -> Account -> Delete Account. Note this permanently deletes your data.
+faq_009,Do you have an API?,Yes, our public API is documented at https://api.unthinkable.example/docs.
+faq_010,How to integrate with Slack?,Follow the integration guide in Settings -> Integrations -> Slack and install the app to your workspace.
