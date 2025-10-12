@@ -31,6 +31,15 @@ CREATE TABLE IF NOT EXISTS escalations (
   notes TEXT,
   created_at TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS logs (
+  id TEXT PRIMARY KEY,
+  session_id TEXT,
+  level TEXT,
+  message TEXT,
+  meta TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
 `);
 
 module.exports = db;
