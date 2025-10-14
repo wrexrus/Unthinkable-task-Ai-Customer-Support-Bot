@@ -160,7 +160,7 @@ async function generateResponse({ faqHits = [], contextMessages = [], userMessag
     } catch (err) {
       console.warn('Gemini call failed; falling back to mock. Error:', err?.message || err);
       // continue to fallback
-    }
+    } 
   }
 
   // --- 3) Fallback/mock path ---
@@ -216,8 +216,8 @@ async function generateNextActions({ faqHits = [], contextMessages = [], userMes
       if (actions.length === 0) actions.push(raw.slice(0, 200));
       return { actions, reason: 'gemini' };
     } catch (err) {
-      console.warn('Gemini next-actions failed, falling back:', err?.message || err);
-      
+      const short = err?.response?.status ? `${err.response.status} ${err.response.statusText || ''}` : (err?.message || 'unknown');
+      console.warn('Gemini next-actions over — continuing with fallback.');
     }
   }
 
@@ -260,11 +260,11 @@ async function generateNextActions({ faqHits = [], contextMessages = [], userMes
 }
 
 // attach to exported function (keeping backward compatibility)
-if (typeof module.exports === 'function') {
-  module.exports.generateNextActions = generateNextActions;
-} else if (module && module.exports) {
-  module.exports.generateNextActions = generateNextActions;
-}
+// if (typeof module.exports === 'function') {
+//   module.exports.generateNextActions = generateNextActions;
+// } else if (module && module.exports) {
+//   module.exports.generateNextActions = generateNextActions;
+// }
 
 generateResponse.generateNextActions = generateNextActions;
 

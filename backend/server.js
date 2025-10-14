@@ -168,6 +168,41 @@ app.post('/api/session/:sessionId/summary', wrapAsync(async (req, res) => {
   res.json({ summary: summaryText });
 }));
 
+// Next actions endpoint: suggest concrete next steps for a session
+app.post('/api/session/:sessionId/next_actions', wrapAsync(async (req, res) => {
+  const { sessionId } = req.params;
+  // load recent context (use the same short-term context logic)
+  let context = contextCache.get(sessionId);
+  if (!context) {
+    context = dbw.getRecentMessages(sessionId, 12); // a bit more context
+    contextCache.set(sessionId, context);
+  }
+
+  // optional: run faq retrieval on last user message if present
+  const lastUser = [...context].reverse().find(m => m.role === 'user');
+  const lastText = lastUser ? lastUser.content : (req.body.prompt || '');
+  const faqHits = lastText ? searchFaqs(lastText, 3) : [];
+
+  // call llm_service's next-actions function
+  // generateResponse is still the default export (function); its property generateNextActions is the function we attached
+  const fn = generateResponse.generateNextActions || generateResponse.generateNextActions;
+  if (!fn) {
+    // should not happen, but fallback
+    const fallback = { actions: ['No next-actions generator available'], reason: 'missing' };
+    dbw.addLog(sessionId, 'warn', 'next_actions_missing', { requestedBy: 'api' });
+    return res.json(fallback);
+  }
+
+  const { actions, reason } = await fn({ faqHits, contextMessages: context, userMessage: lastText });
+
+  // persist a log
+  dbw.addLog(sessionId, 'info', 'next_actions_generated', { reason, sample: actions.slice(0,3) });
+
+  res.json({ actions, reason });
+}));
+
+
+
 // ---------- JSON error handler (must be last) ----------
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err?.stack || err);

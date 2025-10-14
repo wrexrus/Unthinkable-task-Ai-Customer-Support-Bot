@@ -219,7 +219,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-      <div className="w-full max-w-4xl bg-white rounded-lg shadow-lg p-6">
+      <div className="w-full max-w-7xl bg-white rounded-lg shadow-lg p-6">
         <header className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-2xl font-bold">Unthinkable — AI Support Demo</h1>
