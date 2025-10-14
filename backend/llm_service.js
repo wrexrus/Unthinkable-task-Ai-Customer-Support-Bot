@@ -30,7 +30,17 @@ async function generateResponseGemini({ faqHits = [], contextMessages = [], user
   const prompt = buildPrompt(faqHits, contextMessages, userMessage);
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
   const token = process.env.GEMINI_API_KEY;
-  if (!token) throw new Error('GEMINI_API_KEY not set');
+  if (!token) {
+    console.warn("No GEMINI_API_KEY found — using mock responses");
+    return {
+      actions: [
+        "Summarize conversation so far",
+        "Offer next steps for user follow-up",
+        "Provide a helpful suggestion based on context",
+      ],
+      reason: "No Gemini key configured",
+    };
+  }
 
   const resp = await axios.post(
     url,
@@ -134,11 +144,6 @@ function detectEscalation(userMessage = '', assistantText = '') {
   return hasKw || lowConfidence;
 }
 
-/**
- * Main exported function expected by server.js
- * Signature: async function generateResponse({ faqHits, contextMessages, userMessage })
- * Returns: { text, shouldEscalate }
- */
 async function generateResponse({ faqHits = [], contextMessages = [], userMessage = '' }) {
   // --- 1) Recognize summarization requests ---
   const low = (userMessage || '').toLowerCase();
@@ -171,4 +176,98 @@ async function generateResponse({ faqHits = [], contextMessages = [], userMessag
   return { text: clarifying, shouldEscalate: shouldEsc };
 }
 
+
+async function generateNextActions({ faqHits = [], contextMessages = [], userMessage = '' }) {
+  // Build a short prompt for action suggestions
+  const convoText = (contextMessages || []).map(m => `${m.role}: ${m.content}`).join('\n') + `\nUser: ${userMessage || ''}`;
+  const actionPrompt = `You are a customer-support assistant. Given the conversation below, produce a short ordered list (3-6 items) of concrete next actions for support staff or the user. Keep each item short (<= 20 words). Use bullet points. Conversation:\n\n${convoText}\n\nACTIONS:`;
+
+  // Try Gemini if available
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      // Reuse generateResponseGemini style call but with actionPrompt
+      const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+      const resp = await axios.post(
+        url,
+        { instances: [{ content: actionPrompt }], parameters: { temperature: 0.0, maxOutputTokens: 200 } },
+        { headers: { Authorization: `Bearer ${process.env.GEMINI_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 20000 }
+      );
+
+      // defensive extraction
+      let raw = '';
+      if (resp?.data?.predictions && resp.data.predictions[0]) {
+        const p = resp.data.predictions[0];
+        raw = p.content || p.text || (p.candidates && p.candidates[0] && p.candidates[0].content) || JSON.stringify(p);
+      } else if (resp?.data?.candidates && resp.data.candidates[0]) {
+        raw = resp.data.candidates[0].content || resp.data.candidates[0].message || JSON.stringify(resp.data.candidates[0]);
+      } else {
+        raw = JSON.stringify(resp.data).slice(0, 2000);
+      }
+
+      // split into bullet lines
+      const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const actions = [];
+      for (const ln of lines) {
+        // strip leading bullets and numbers
+        const cleaned = ln.replace(/^[-\d\.\)\s]+/, '').trim();
+        if (cleaned) actions.push(cleaned);
+        if (actions.length >= 6) break;
+      }
+      if (actions.length === 0) actions.push(raw.slice(0, 200));
+      return { actions, reason: 'gemini' };
+    } catch (err) {
+      console.warn('Gemini next-actions failed, falling back:', err?.message || err);
+      
+    }
+  }
+
+  // Deterministic fallback (no external LLM)
+  // Heuristic: look for escalation keywords, order id, billing, login, refund, invoice
+  const text = (convoText || '').toLowerCase();
+  const actions = [];
+
+  // If contains billing/refund keywords => suggest billing steps
+  if (/\b(refund|chargeback|billing|invoice|payment|card|declin)\b/.test(text)) {
+    actions.push('Collect order/invoice ID and last 4 digits of card.');
+    actions.push('Verify purchase date and refund eligibility (30-day policy).');
+    actions.push('Escalate to Billing team with collected evidence.');
+  }
+
+  // If contains login/account keywords
+  if (/\b(password|reset|login|sign in|account|locked)\b/.test(text)) {
+    actions.push('Ask user to confirm registered email or username.');
+    actions.push('Send password reset link or guide through Settings -> Reset Password.');
+    actions.push('If email not received, check spam and resend or escalate.');
+  }
+
+  // If contains integration/API/technical keywords
+  if (/\b(api|integrat|webhook|slack|error|traceback|exception)\b/.test(text)) {
+    actions.push('Request exact error message and steps to reproduce.');
+    actions.push('Request environment details (OS, app version, API request payload).');
+    actions.push('Create a debug ticket for Engineering with logs and sample request.');
+  }
+
+  // Generic helpful steps if no domain detected
+  if (actions.length === 0) {
+    actions.push('Ask clarifying question: what exact issue or error are you seeing?');
+    actions.push('Request account identifier (email or user id) and relevant timestamps.');
+    actions.push('Offer to escalate to human support if needed.');
+  }
+
+  // Trim to max 6 and ensure uniqueness
+  const unique = Array.from(new Set(actions)).slice(0, 6);
+  return { actions: unique, reason: 'fallback' };
+}
+
+// attach to exported function (keeping backward compatibility)
+if (typeof module.exports === 'function') {
+  module.exports.generateNextActions = generateNextActions;
+} else if (module && module.exports) {
+  module.exports.generateNextActions = generateNextActions;
+}
+
+generateResponse.generateNextActions = generateNextActions;
+
+
 module.exports = generateResponse;
+
