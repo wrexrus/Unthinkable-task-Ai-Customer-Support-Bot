@@ -17,7 +17,6 @@ export default function ChatWindow({ sessionId, setSessionSummary }) {
     }
     fetchHistory();
     fetchSessionDetail();
-    // eslint-disable-next-line
   }, [sessionId]);
 
   useEffect(() => {
@@ -40,7 +39,6 @@ export default function ChatWindow({ sessionId, setSessionSummary }) {
       const summary = adminRes?.data?.session?.summary || adminRes?.session?.summary || "";
       setSessionSummary(summary);
     } catch (err) {
-      // optional: quietly ignore if admin endpoint not available
     }
   }
 
@@ -51,28 +49,45 @@ export default function ChatWindow({ sessionId, setSessionSummary }) {
       return;
     }
 
-    const userText = input.trim();
+    const userText = input.trim().toLowerCase();
     setInput("");
     setError("");
     setLoading(true);
-    setNextActions(null); // clear previous suggestions
+    setNextActions(null);
 
-    // optimistic UI add
-    setMessages(prev => [...prev, { id: `u-${Date.now()}`, role: "user", content: userText }]);
+    setMessages(prev => [...prev, { id: `u-${Date.now()}`, role: "user", content: input.trim() }]);
+
+    const greetings = ["hi", "hello", "hey", "hola", "yo", "sup"];
+    if (greetings.includes(userText)) {
+      const botGreeting = "👋 Hello there! I can help you with any query or FAQs you have. Please go ahead and ask!";
+      setMessages(prev => [
+        ...prev,
+        { id: `a-${Date.now()}`, role: "assistant", content: botGreeting }
+      ]);
+      setLoading(false);
+      return;
+    }
 
     try {
-      const res = await axios.post(`/session/${sessionId}/message`, { text: userText });
+      const res = await axios.post(`/session/${sessionId}/message`, { text: input.trim() });
       const assistantText = (res.data && res.data.text) || res.text || res.data || "";
-      setMessages(prev => [...prev, { id: `a-${Date.now()}`, role: "assistant", content: assistantText }]);
+      setMessages(prev => [
+        ...prev,
+        { id: `a-${Date.now()}`, role: "assistant", content: assistantText }
+      ]);
       await fetchSessionDetail();
     } catch (err) {
       console.error("sendMessage", err);
       setError(err?.response?.data?.error?.message || err.message || "Send failed");
-      setMessages(prev => [...prev, { id: `a-err-${Date.now()}`, role: "assistant", content: "Sorry — there was an error sending your message." }]);
+      setMessages(prev => [
+        ...prev,
+        { id: `a-err-${Date.now()}`, role: "assistant", content: "Sorry — there was an error sending your message." }
+      ]);
     } finally {
       setLoading(false);
     }
   }
+
 
   async function generateSummary() {
     if (!sessionId) return;
@@ -81,7 +96,6 @@ export default function ChatWindow({ sessionId, setSessionSummary }) {
       const res = await axios.post(`/session/${sessionId}/summary`, {});
       const sum = res.data?.summary || res.summary || res?.data;
       setSessionSummary(sum || "");
-      // optionally refresh history
       fetchHistory();
     } catch (err) {
       console.error("generateSummary", err);
@@ -98,27 +112,21 @@ export default function ChatWindow({ sessionId, setSessionSummary }) {
       setError("");
       setNextActions(null);
       const res = await axios.post(`/session/${sessionId}/next_actions`, {});
-      // Accept both shapes: res.data.actions or res.actions or res.data
       let payload = res?.data || res;
-      // payload.actions should be array or single string
       const rawActions = payload.actions ?? payload.action ?? payload;
       let actions = [];
 
       if (Array.isArray(rawActions)) {
         actions = rawActions.filter(Boolean).map(a => String(a).trim());
       } else if (typeof rawActions === "string") {
-        // If single string possibly containing newlines or bullets, split to lines but keep as single if short
         const lines = rawActions.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-        // If there are multiple reasonable lines, treat as list; else keep as single
         if (lines.length > 1) actions = lines;
         else actions = [rawActions.trim()];
       } else {
-        // fallback: try to stringify
         const s = JSON.stringify(rawActions);
         actions = [s.slice(0, 500)];
       }
 
-      // keep at most 6
       if (actions.length > 6) actions = actions.slice(0, 6);
 
       setNextActions({ actions, reason: payload.reason || payload?.data?.reason || "unknown" });

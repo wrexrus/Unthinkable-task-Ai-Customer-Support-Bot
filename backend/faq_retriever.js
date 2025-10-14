@@ -9,14 +9,12 @@ function normalizeText(s = '') {
 }
 
 function loadFaqs() {
-  if (!fs.existsSync(faqsPath)) return [];
+  if (!fs.existsSync(faqsPath)) return [];``
   const raw = fs.readFileSync(faqsPath, 'utf8');
   const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
 
   const faqs = [];
   for (const line of lines) {
-    // Expecting: id,question,answer  (answer may include commas)
-    // Use a regex to split first two commas only
     const m = line.match(/^([^,]+),([^,]+),([\s\S]+)$/);
     if (!m) continue;
     const id = m[1].trim();
@@ -38,7 +36,6 @@ function searchFaqs(query, limit = 3) {
   if (!query) return [];
   const qnorm = normalizeText(query);
 
-  // compute similarity between normalized query and normalized faq question
   const scores = FAQS.map(f => {
     const score = stringSimilarity.compareTwoStrings(qnorm, f.question_norm);
     return { id: f.id, question: f.question, answer: f.answer, score };

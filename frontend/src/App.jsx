@@ -1,11 +1,7 @@
-// src/App.jsx
 import React, { useState, useEffect } from "react";
 import ChatWindow from "./components/ChatWindow";
 import axios from "./api/axios";
 
-/**
- * Simple Error Boundary so Admin problems don't crash the whole app.
- */
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -34,12 +30,6 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-/**
- * Embedded AdminPanel (fixed).
- * - uses axios and ALWAYS reads response.data
- * - has a "Back" button when viewing details
- * - exposes onPickSession to let App load a session
- */
 function AdminPanel({ onPickSession }) {
   const [sessions, setSessions] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -71,9 +61,7 @@ function AdminPanel({ onPickSession }) {
     setSelectedId(id);
     try {
       const res = await axios.get(`/admin/session/${id}`);
-      // IMPORTANT: axios returns { data: { session, messages, logs, escalations } }
       const payload = res?.data || res;
-      // defensive: ensure shape is right
       const safe = {
         session: payload.session || payload.data?.session || null,
         messages: payload.messages || payload.data?.messages || [],
@@ -191,9 +179,7 @@ function AdminPanel({ onPickSession }) {
   );
 }
 
-/**
- * Main App component
- */
+
 export default function App() {
   const [sessionId, setSessionId] = useState("");
   const [showAdmin, setShowAdmin] = useState(false);

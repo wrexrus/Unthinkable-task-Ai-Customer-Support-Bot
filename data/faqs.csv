@@ -8,3 +8,4 @@ faq_007,Why was my card declined?,Card declines can be due to insufficient funds
 faq_008,Can I cancel my account?,Yes — go to Settings -> Account -> Delete Account. Note this permanently deletes your data.
 faq_009,Do you have an API?,Yes, our public API is documented at https://api.unthinkable.example/docs.
 faq_010,How to integrate with Slack?,Follow the integration guide in Settings -> Integrations -> Slack and install the app to your workspace.
+

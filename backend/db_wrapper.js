@@ -2,7 +2,6 @@ const db = require('./db');
 const { v4: uuidv4 } = require('uuid');
 
 module.exports = {
-  // Sessions
   createSession(sessionId, userId = null) {
     const id = sessionId || uuidv4();
     const stmt = db.prepare("INSERT OR IGNORE INTO sessions (id, user_id, last_active) VALUES (?, ?, datetime('now'))");
@@ -26,7 +25,6 @@ module.exports = {
     return db.prepare("UPDATE sessions SET last_active = datetime('now') WHERE id = ?").run(sessionId);
   },
 
-  // Messages
   addMessage(sessionId, role, content) {
     const id = uuidv4();
     const stmt = db.prepare('INSERT INTO messages (id, session_id, role, content) VALUES (?, ?, ?, ?)');
@@ -43,7 +41,6 @@ module.exports = {
     return rows.reverse().map(r => ({ role: r.role, content: r.content, created_at: r.created_at }));
   },
 
-  // Escalations
   createEscalation(sessionId, reason = 'manual', notes = '') {
     const id = uuidv4();
     const stmt = db.prepare('INSERT INTO escalations (id, session_id, reason, status, notes) VALUES (?, ?, ?, ?, ?)');
@@ -59,7 +56,6 @@ module.exports = {
     return db.prepare('SELECT id, reason, status, notes, created_at FROM escalations WHERE session_id = ? ORDER BY created_at ASC').all(sessionId);
   },
 
-  // Logs
   addLog(sessionId, level, message, meta = null) {
     const id = uuidv4();
     const stmt = db.prepare('INSERT INTO logs (id, session_id, level, message, meta) VALUES (?, ?, ?, ?, ?)');

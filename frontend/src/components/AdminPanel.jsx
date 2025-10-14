@@ -44,7 +44,6 @@ export default function AdminPanel({ onPickSession }) {
     setLoading(true);
     try {
       await axios.post(`/session/${selected}/summary`, {});
-      // reload details & sessions
       await showSession(selected);
       await loadSessions();
     } catch (err) {
