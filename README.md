@@ -33,3 +33,7 @@ GEMINI_API_KEY : ()
 
 Interact with frontend or use Curl commands in terminal (access curl_cmds)
 
+Ui: 
+<img width="1656" height="934" alt="image" src="https://github.com/user-attachments/assets/f9c3e228-1d08-419e-a0ee-cda70dddf92f" />
+
+
