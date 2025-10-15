@@ -2,6 +2,9 @@
 
 A demo project to simulate customer support interactions using AI for FAQs and escalation scenarios. It accepts customer queries, retrieves helpful FAQs, uses an LLM (Gemini when configured) to generate responses, summarizes conversations, and suggests / queues escalations and next actions.
 
+## Demo video
+Available in repo or can access here - (https://drive.google.com/file/d/1MfEqjv1KhyLJY15XdgTsRHSP1XqmuXjU/view?usp=sharing)
+
 ## Tech Stack
 Backend: Node.js (CommonJS), Express, better-sqlite3 (or sqlite3) for persistence, axios for HTTP, lru-cache.
 Frontend: Vite + React, Tailwind CSS, Axios.
