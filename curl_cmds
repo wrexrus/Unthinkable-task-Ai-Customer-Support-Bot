@@ -1,0 +1,13 @@
+Create session:
+curl -s -X POST "http://localhost:4000/api/session" -H "Content-Type: application/json" -d '{}' | jq
+# -> { "session_id": "...", "created_at": "..." }
+
+Send message:
+curl -s -X POST "http://localhost:4000/api/session/<SESSION_ID>/message" -H "Content-Type: application/json" -d '{"text":"How do I reset my password?" }' | jq
+# -> { "role":"assistant", "text":"...", "faqs": [...] }
+
+Generate summary:
+curl -s -X POST "http://localhost:4000/api/session/<SESSION_ID>/summary" -H "Content-Type: application/json" -d '{}' | jq
+
+Request next actions:
+curl -s -X POST "http://localhost:4000/api/session/<SESSION_ID>/next_actions" -H "Content-Type: application/json" -d '{}' | jq
